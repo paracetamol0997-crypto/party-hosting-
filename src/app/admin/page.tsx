@@ -31,6 +31,15 @@ interface RegistrationItem {
   registered_at: string;
 }
 
+interface DatabaseStatus {
+  mode: 'supabase' | 'local';
+  isConfigured: boolean;
+  supabaseUrl?: string;
+  error?: string | null;
+  tableExists: boolean;
+  storagePath?: string;
+}
+
 export default function AdminPage() {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
   const [password, setPassword] = useState('');
@@ -38,6 +47,8 @@ export default function AdminPage() {
   const [isLoggingIn, setIsLoggingIn] = useState(false);
 
   const [registrations, setRegistrations] = useState<RegistrationItem[]>([]);
+  const [dbStatus, setDbStatus] = useState<DatabaseStatus | null>(null);
+  const [showDbHelp, setShowDbHelp] = useState(false);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
@@ -60,6 +71,7 @@ export default function AdminPage() {
       if (json.success) {
         setIsAuthenticated(true);
         setRegistrations(json.data.registrations || []);
+        setDbStatus(json.data.databaseStatus || null);
       } else {
         setIsAuthenticated(false);
       }
@@ -277,6 +289,93 @@ export default function AdminPage() {
 
       {/* Main Content Area */}
       <main className="max-w-7xl mx-auto px-4 sm:px-8 pt-8">
+        {/* Database Diagnostics Banner */}
+        {dbStatus && dbStatus.mode === 'supabase' && dbStatus.tableExists && (
+          <div className="mb-6 p-4 rounded-2xl bg-emerald-950/40 border border-emerald-500/50 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-3 h-3 rounded-full bg-emerald-400 animate-pulse" />
+              <div>
+                <span className="text-xs font-bold text-emerald-300 uppercase tracking-wider block">
+                  Database Connected
+                </span>
+                <span className="text-xs text-zinc-300">
+                  Live Supabase PostgreSQL Cloud Database Active
+                </span>
+              </div>
+            </div>
+            <span className="text-[11px] text-zinc-400 bg-night-950 px-3 py-1 rounded-full border border-zinc-800">
+              Persistent &amp; Ready
+            </span>
+          </div>
+        )}
+
+        {dbStatus && dbStatus.mode === 'supabase' && !dbStatus.tableExists && (
+          <div className="mb-6 p-5 rounded-2xl bg-red-950/70 border-2 border-red-500 text-white shadow-xl">
+            <div className="flex items-start gap-3">
+              <AlertTriangle className="w-6 h-6 text-red-400 shrink-0 mt-0.5" />
+              <div>
+                <h3 className="font-bold text-base text-red-200">
+                  Supabase Connected, But Table &apos;registrations&apos; Missing!
+                </h3>
+                <p className="text-xs text-zinc-300 mt-1 leading-relaxed">
+                  Supabase responded with: <code className="text-red-300 bg-night-950 px-2 py-0.5 rounded">{dbStatus.error}</code>.
+                  <br />
+                  Please open your <strong>Supabase Dashboard &gt; SQL Editor</strong> and paste the contents of <code>supabase-schema.sql</code> to create the table and RLS policies.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {dbStatus && dbStatus.mode === 'local' && (
+          <div className="mb-6 p-5 rounded-2xl bg-amber-950/50 border-2 border-amber-500/80 text-white shadow-xl">
+            <div className="flex flex-col sm:flex-row items-start justify-between gap-4">
+              <div className="flex items-start gap-3">
+                <AlertTriangle className="w-6 h-6 text-amber-400 shrink-0 mt-0.5" />
+                <div>
+                  <h3 className="font-bold text-base text-amber-200">
+                    ⚠️ Cloud Database (Supabase) Not Configured in Vercel
+                  </h3>
+                  <p className="text-xs text-zinc-300 mt-1 leading-relaxed">
+                    Vercel uses <strong>serverless functions</strong> without persistent disk storage. To save registrations permanently across all guest visits, connect a free Supabase PostgreSQL database.
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowDbHelp(!showDbHelp)}
+                className="px-4 py-2 bg-neon-yellow text-night-950 rounded-xl text-xs font-bold hover:bg-amber-400 transition-colors whitespace-nowrap shadow-md"
+              >
+                {showDbHelp ? 'Hide Setup Guide' : 'How to Connect (2 Mins)'}
+              </button>
+            </div>
+
+            {showDbHelp && (
+              <div className="mt-4 pt-4 border-t border-amber-500/30 text-xs text-zinc-300 space-y-3">
+                <p className="font-bold text-white text-sm">Follow these 3 quick steps to connect your free database:</p>
+                <ol className="list-decimal list-inside space-y-2 text-zinc-300">
+                  <li>
+                    Create a free project at <a href="https://supabase.com" target="_blank" rel="noreferrer" className="text-neon-yellow underline font-bold">supabase.com</a>.
+                  </li>
+                  <li>
+                    In your Supabase project, go to the <strong>SQL Editor</strong>, paste the contents of <code>supabase-schema.sql</code>, and click <strong>Run</strong>.
+                  </li>
+                  <li>
+                    In your Vercel Project &gt; <strong>Settings &gt; Environment Variables</strong>, add these 3 variables:
+                    <div className="bg-night-950 p-3 rounded-xl mt-2 font-mono text-xs border border-zinc-800 space-y-1">
+                      <div><span className="text-neon-yellow">NEXT_PUBLIC_SUPABASE_URL</span> = https://your-project.supabase.co</div>
+                      <div><span className="text-neon-yellow">NEXT_PUBLIC_SUPABASE_ANON_KEY</span> = your-anon-public-key</div>
+                      <div><span className="text-neon-yellow">SUPABASE_SERVICE_ROLE_KEY</span> = your-service-role-secret</div>
+                    </div>
+                  </li>
+                </ol>
+                <p className="text-zinc-400 text-[11px]">
+                  Once added, Vercel will automatically redeploy and all registrations will save permanently to your cloud database!
+                </p>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Metric Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 mb-8">
           <div className="bg-night-900 border border-zinc-800 p-6 rounded-2xl shadow-lg">

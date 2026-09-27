@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getAllRegistrations, deleteRegistration } from '@/lib/db';
+import { getAllRegistrations, deleteRegistration, getDatabaseStatus } from '@/lib/db';
 
 function isAuthenticated(req: NextRequest): boolean {
   const cookie = req.cookies.get('admin_auth');
@@ -24,13 +24,17 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const registrations = await getAllRegistrations();
+    const [registrations, dbStatus] = await Promise.all([
+      getAllRegistrations(),
+      getDatabaseStatus(),
+    ]);
     const totalPeople = registrations.reduce((sum, r) => sum + (r.number_of_people || 1), 0);
 
     return NextResponse.json({
       success: true,
       data: {
         registrations,
+        databaseStatus: dbStatus,
         stats: {
           totalRegistrations: registrations.length,
           totalPeople,

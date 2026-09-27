@@ -1,6 +1,7 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import fs from 'fs';
 import path from 'path';
+import os from 'os';
 
 export interface Registration {
   id: string;
@@ -13,24 +14,68 @@ export interface Registration {
   registered_at: string;
 }
 
-// Local fallback store file path
-const DATA_DIR = path.join(process.cwd(), 'data');
-const LOCAL_DB_PATH = path.join(DATA_DIR, 'registrations.json');
+export interface DatabaseStatus {
+  mode: 'supabase' | 'local';
+  isConfigured: boolean;
+  supabaseUrl?: string;
+  error?: string | null;
+  tableExists: boolean;
+  storagePath?: string;
+}
+
+// Determine safe storage directory (tmp dir on serverless / Vercel)
+function getSafeDataDir(): string {
+  if (process.env.VERCEL) {
+    const tmp = path.join(os.tmpdir(), 'night_out_data');
+    if (!fs.existsSync(tmp)) {
+      try {
+        fs.mkdirSync(tmp, { recursive: true });
+      } catch (e) {
+        console.warn('Could not create tmp dir:', e);
+      }
+    }
+    return tmp;
+  }
+
+  const local = path.join(process.cwd(), 'data');
+  try {
+    if (!fs.existsSync(local)) {
+      fs.mkdirSync(local, { recursive: true });
+    }
+    return local;
+  } catch {
+    const tmp = path.join(os.tmpdir(), 'night_out_data');
+    if (!fs.existsSync(tmp)) {
+      fs.mkdirSync(tmp, { recursive: true });
+    }
+    return tmp;
+  }
+}
+
+function getLocalDbPath(): string {
+  return path.join(getSafeDataDir(), 'registrations.json');
+}
 
 function ensureLocalDbExists() {
-  if (!fs.existsSync(DATA_DIR)) {
-    fs.mkdirSync(DATA_DIR, { recursive: true });
-  }
-  if (!fs.existsSync(LOCAL_DB_PATH)) {
-    fs.writeFileSync(LOCAL_DB_PATH, JSON.stringify([], null, 2), 'utf-8');
+  const filePath = getLocalDbPath();
+  if (!fs.existsSync(filePath)) {
+    try {
+      fs.writeFileSync(filePath, JSON.stringify([], null, 2), 'utf-8');
+    } catch (err) {
+      console.warn('Could not initialize local db file:', err);
+    }
   }
 }
 
 function readLocalRegistrations(): Registration[] {
   try {
     ensureLocalDbExists();
-    const raw = fs.readFileSync(LOCAL_DB_PATH, 'utf-8');
-    return JSON.parse(raw) as Registration[];
+    const filePath = getLocalDbPath();
+    if (fs.existsSync(filePath)) {
+      const raw = fs.readFileSync(filePath, 'utf-8');
+      return JSON.parse(raw) as Registration[];
+    }
+    return [];
   } catch (err) {
     console.error('Error reading local db:', err);
     return [];
@@ -40,7 +85,8 @@ function readLocalRegistrations(): Registration[] {
 function writeLocalRegistrations(data: Registration[]) {
   try {
     ensureLocalDbExists();
-    fs.writeFileSync(LOCAL_DB_PATH, JSON.stringify(data, null, 2), 'utf-8');
+    const filePath = getLocalDbPath();
+    fs.writeFileSync(filePath, JSON.stringify(data, null, 2), 'utf-8');
   } catch (err) {
     console.error('Error writing to local db:', err);
   }
@@ -48,6 +94,7 @@ function writeLocalRegistrations(data: Registration[]) {
 
 // Supabase client instance (if configured)
 let supabase: SupabaseClient | null = null;
+let lastSupabaseError: string | null = null;
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
 const supabaseKey =
@@ -57,9 +104,12 @@ const supabaseKey =
 
 if (supabaseUrl && supabaseKey) {
   try {
-    supabase = createClient(supabaseUrl, supabaseKey);
-  } catch (err) {
+    supabase = createClient(supabaseUrl, supabaseKey, {
+      auth: { persistSession: false },
+    });
+  } catch (err: any) {
     console.warn('Could not initialize Supabase client:', err);
+    lastSupabaseError = err?.message || 'Initialization failed';
   }
 }
 
@@ -68,21 +118,77 @@ export function isUsingSupabase(): boolean {
 }
 
 /**
+ * Get overall database status for admin inspection
+ */
+export async function getDatabaseStatus(): Promise<DatabaseStatus> {
+  if (!supabase || !supabaseUrl) {
+    return {
+      mode: 'local',
+      isConfigured: false,
+      error: process.env.VERCEL
+        ? 'No Supabase credentials configured. Running in ephemeral serverless mode (data will reset across function restarts). Please connect Supabase in Vercel.'
+        : null,
+      tableExists: true,
+      storagePath: getLocalDbPath(),
+    };
+  }
+
+  try {
+    // Quick probe to test connection and table existence
+    const { error } = await supabase
+      .from('registrations')
+      .select('id', { head: true, count: 'exact' });
+
+    if (error) {
+      lastSupabaseError = error.message;
+      return {
+        mode: 'supabase',
+        isConfigured: true,
+        supabaseUrl,
+        error: error.message,
+        tableExists: !error.message.includes('does not exist') && !error.message.includes('relation'),
+      };
+    }
+
+    return {
+      mode: 'supabase',
+      isConfigured: true,
+      supabaseUrl,
+      error: null,
+      tableExists: true,
+    };
+  } catch (err: any) {
+    return {
+      mode: 'supabase',
+      isConfigured: true,
+      supabaseUrl,
+      error: err?.message || 'Connection error',
+      tableExists: false,
+    };
+  }
+}
+
+/**
  * Find existing registration by phone
  */
 export async function getRegistrationByPhone(phone: string): Promise<Registration | null> {
   if (supabase) {
-    const { data, error } = await supabase
-      .from('registrations')
-      .select('*')
-      .eq('phone', phone)
-      .maybeSingle();
+    try {
+      const { data, error } = await supabase
+        .from('registrations')
+        .select('*')
+        .eq('phone', phone)
+        .maybeSingle();
 
-    if (error) {
-      console.error('Supabase getRegistrationByPhone error:', error);
-      // Fallback to local if table doesn't exist yet or connection fails
-    } else if (data) {
-      return data as Registration;
+      if (!error && data) {
+        return data as Registration;
+      }
+      if (error) {
+        console.warn('Supabase getRegistrationByPhone error:', error.message);
+        lastSupabaseError = error.message;
+      }
+    } catch (err: any) {
+      console.error('Supabase query exception:', err);
     }
   }
 
@@ -113,7 +219,10 @@ export async function createRegistration(payload: {
   }
 
   const record: Registration = {
-    id: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `reg_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
+    id:
+      typeof crypto !== 'undefined' && crypto.randomUUID
+        ? crypto.randomUUID()
+        : `reg_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
     full_name: payload.fullName,
     phone: payload.phone,
     email: payload.email,
@@ -124,30 +233,46 @@ export async function createRegistration(payload: {
   };
 
   if (supabase) {
-    const { data, error } = await supabase
-      .from('registrations')
-      .insert([record])
-      .select()
-      .single();
+    try {
+      const { data, error } = await supabase
+        .from('registrations')
+        .insert([record])
+        .select()
+        .single();
 
-    if (error) {
-      // Check if it was unique constraint violation
-      if (error.code === '23505' || error.message.includes('unique') || error.message.includes('duplicate')) {
-        return {
-          success: false,
-          isDuplicate: true,
-          error: "You're already on the guest list 👀",
-        };
+      if (error) {
+        lastSupabaseError = error.message;
+        // Check unique constraint violation
+        if (
+          error.code === '23505' ||
+          error.message.includes('unique') ||
+          error.message.includes('duplicate')
+        ) {
+          return {
+            success: false,
+            isDuplicate: true,
+            error: "You're already on the guest list 👀",
+          };
+        }
+
+        console.error('Supabase insert error:', error);
+        // If on Vercel, report error so host knows to run the table schema
+        if (process.env.VERCEL) {
+          return {
+            success: false,
+            error: `Database error: ${error.message}. Please verify the registrations table exists in Supabase.`,
+          };
+        }
+      } else if (data) {
+        return { success: true, data: data as Registration };
       }
-      console.error('Supabase insert error, falling back to local:', error);
-    } else if (data) {
-      return { success: true, data: data as Registration };
+    } catch (err: any) {
+      console.error('Supabase insert exception:', err);
     }
   }
 
-  // Local file storage
+  // Local storage fallback
   const list = readLocalRegistrations();
-  // Double-check local duplicate
   if (list.some((item) => item.phone === payload.phone)) {
     return {
       success: false,
@@ -167,15 +292,22 @@ export async function createRegistration(payload: {
  */
 export async function getAllRegistrations(): Promise<Registration[]> {
   if (supabase) {
-    const { data, error } = await supabase
-      .from('registrations')
-      .select('*')
-      .order('registered_at', { ascending: false });
+    try {
+      const { data, error } = await supabase
+        .from('registrations')
+        .select('*')
+        .order('registered_at', { ascending: false });
 
-    if (!error && data) {
-      return data as Registration[];
+      if (!error && data) {
+        return data as Registration[];
+      }
+      if (error) {
+        console.warn('Supabase getAllRegistrations error:', error.message);
+        lastSupabaseError = error.message;
+      }
+    } catch (err) {
+      console.error('Supabase query error:', err);
     }
-    console.warn('Supabase getAllRegistrations error, using local fallback:', error);
   }
 
   return readLocalRegistrations();
@@ -187,11 +319,15 @@ export async function getAllRegistrations(): Promise<Registration[]> {
 export async function deleteRegistration(id: string): Promise<boolean> {
   let supabaseDeleted = false;
   if (supabase) {
-    const { error } = await supabase.from('registrations').delete().eq('id', id);
-    if (!error) {
-      supabaseDeleted = true;
-    } else {
-      console.error('Supabase delete error:', error);
+    try {
+      const { error } = await supabase.from('registrations').delete().eq('id', id);
+      if (!error) {
+        supabaseDeleted = true;
+      } else {
+        console.error('Supabase delete error:', error.message);
+      }
+    } catch (err) {
+      console.error('Supabase delete exception:', err);
     }
   }
 

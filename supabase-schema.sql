@@ -21,24 +21,31 @@ CREATE INDEX IF NOT EXISTS idx_registrations_created ON registrations(registered
 -- 3. Row Level Security (RLS)
 ALTER TABLE registrations ENABLE ROW LEVEL SECURITY;
 
--- Allow public to INSERT new registrations
-CREATE POLICY "Allow public insert on registrations"
+-- Drop older policies if re-running
+DROP POLICY IF EXISTS "Allow public insert on registrations" ON registrations;
+DROP POLICY IF EXISTS "Allow service role full access on registrations" ON registrations;
+DROP POLICY IF EXISTS "Allow read registrations" ON registrations;
+DROP POLICY IF EXISTS "Allow insert registrations" ON registrations;
+DROP POLICY IF EXISTS "Allow select registrations" ON registrations;
+DROP POLICY IF EXISTS "Allow delete registrations" ON registrations;
+
+-- Allow INSERT for everyone (public registration)
+CREATE POLICY "Allow insert registrations"
   ON registrations
   FOR INSERT
-  TO anon, authenticated
+  TO anon, authenticated, service_role
   WITH CHECK (true);
 
--- Allow service role full access
-CREATE POLICY "Allow service role full access on registrations"
-  ON registrations
-  FOR ALL
-  TO service_role
-  USING (true)
-  WITH CHECK (true);
-
--- Optional: Allow public read of their own registration if needed
-CREATE POLICY "Allow read registrations"
+-- Allow SELECT for queries from Next.js API
+CREATE POLICY "Allow select registrations"
   ON registrations
   FOR SELECT
-  TO service_role
+  TO anon, authenticated, service_role
+  USING (true);
+
+-- Allow DELETE for host admin actions
+CREATE POLICY "Allow delete registrations"
+  ON registrations
+  FOR DELETE
+  TO anon, authenticated, service_role
   USING (true);
