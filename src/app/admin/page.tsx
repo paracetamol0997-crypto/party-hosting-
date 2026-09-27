@@ -210,7 +210,7 @@ export default function AdminPage() {
                   type="password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Enter passcode (default: hiteshparty2026)"
+                  placeholder="Enter host passcode"
                   className="w-full pl-10 pr-4 py-3 bg-night-950 border border-zinc-800 rounded-xl text-white placeholder-zinc-600 focus:outline-none focus:ring-2 focus:ring-neon-yellow text-sm"
                   autoFocus
                 />

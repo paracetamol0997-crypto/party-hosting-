@@ -71,7 +71,7 @@ cp .env.example .env.local
 
 Edit `.env.local`:
 ```env
-ADMIN_PASSWORD=hiteshparty2026
+ADMIN_PASSWORD=9347478875
 ADMIN_EMAIL=your-email@example.com
 RESEND_API_KEY=re_your_resend_api_key_here
 EMAIL_FROM=Night Out <onboarding@resend.dev>
@@ -93,7 +93,7 @@ npm run dev
 ```
 Open [http://localhost:3000](http://localhost:3000) in your browser.
 
-Access the Host Admin Dashboard at [http://localhost:3000/admin](http://localhost:3000/admin) with password: `hiteshparty2026`.
+Access the Host Admin Dashboard at [http://localhost:3000/admin](http://localhost:3000/admin) with password: `9347478875`.
 
 ---
 

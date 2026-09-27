@@ -4,7 +4,7 @@ import { getAllRegistrations, deleteRegistration } from '@/lib/db';
 function isAuthenticated(req: NextRequest): boolean {
   const cookie = req.cookies.get('admin_auth');
   const authHeader = req.headers.get('authorization');
-  const correctPassword = process.env.ADMIN_PASSWORD || 'hiteshparty2026';
+  const correctPassword = process.env.ADMIN_PASSWORD || '9347478875';
 
   if (cookie && cookie.value === 'authenticated_hitesh_2026') {
     return true;
