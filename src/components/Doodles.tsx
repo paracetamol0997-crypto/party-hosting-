@@ -196,7 +196,7 @@ export function StarDoodle({ className = 'w-5 h-5 text-neon-yellow' }: { classNa
 }
 
 /**
- * Distressed paint splash badge for SPECIAL ITEM JON
+ * Distressed paint splash badge for SPECIAL ITEM KAJU AUNTY
  */
 export function SpecialItemBadge() {
   return (
@@ -215,8 +215,8 @@ export function SpecialItemBadge() {
           <div className="text-xs tracking-widest font-extrabold uppercase text-zinc-900">
             ★ SPECIAL ITEM ★
           </div>
-          <div className="text-3xl sm:text-4xl font-black font-display tracking-wider">
-            JON
+          <div className="text-2xl sm:text-4xl font-black font-display tracking-wider whitespace-nowrap">
+            KAJU AUNTY
           </div>
         </div>
         <StarDoodle className="w-5 h-5 text-black" />

@@ -69,8 +69,8 @@ export default function Hero() {
           </span>
         </div>
 
-        {/* HITESH Banner */}
-        <div className="relative inline-block mb-3 transform -rotate-1 hover:rotate-0 transition-transform">
+        {/* HITESH BHAI Banner */}
+        <div className="relative inline-block mb-1 transform -rotate-1 hover:rotate-0 transition-transform">
           <div
             className="absolute inset-0 bg-neon-yellow rounded-md -rotate-1 scale-105 shadow-[0_0_30px_rgba(255,230,0,0.5)] -z-10"
             style={{
@@ -78,9 +78,16 @@ export default function Hero() {
                 'polygon(2% 0%, 98% 3%, 100% 92%, 97% 100%, 3% 97%, 0% 8%)',
             }}
           />
-          <h2 className="font-marker text-night-950 text-4xl sm:text-6xl md:text-7xl font-black px-8 py-2 tracking-widest uppercase">
-            HITESH
+          <h2 className="font-marker text-night-950 text-3xl sm:text-5xl md:text-6xl font-black px-8 py-2 tracking-widest uppercase">
+            HITESH BHAI
           </h2>
+        </div>
+
+        {/* Caption below his name */}
+        <div className="mb-3">
+          <p className="font-chalk text-xs sm:text-sm text-zinc-400 tracking-widest italic font-semibold">
+            &ldquo;Guns dont need agreements &rdquo;
+          </p>
         </div>
 
         {/* Sub-tagline */}

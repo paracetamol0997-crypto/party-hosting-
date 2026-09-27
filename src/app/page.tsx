@@ -28,7 +28,7 @@ export default function Home() {
       {/* 3. Event Details */}
       <EventDetails />
 
-      {/* 4. Party Members (Elite, DJ, Delight, Special Item JON) */}
+      {/* 4. Party Members (Elite, DJ, Delight, Special Item KAJU AUNTY) */}
       <PartyMembers />
 
       {/* 5. Food & Menu */}

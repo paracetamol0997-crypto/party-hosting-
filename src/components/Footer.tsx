@@ -17,7 +17,7 @@ export default function Footer() {
         </div>
 
         <p className="font-chalk text-zinc-400 text-lg">
-          Hosted with pride by <span className="text-neon-yellow font-bold">Hitesh</span> • October 12, 2026
+          Hosted with pride by <span className="text-neon-yellow font-bold">Hitesh Bhai</span> • October 12, 2026
         </p>
 
         <p className="text-xs text-zinc-500 max-w-md">
